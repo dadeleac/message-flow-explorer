@@ -1,0 +1,114 @@
+{
+  "messages": [
+    {
+      "type": "SampleApp.Contracts.SubmitOrderCommand",
+      "category": "Command"
+    },
+    {
+      "type": "SampleApp.Contracts.OrderStatusResponse",
+      "category": "Request"
+    },
+    {
+      "type": "SampleApp.Contracts.OrderAcceptedEvent",
+      "category": "Event"
+    },
+    {
+      "type": "SampleApp.Contracts.PaymentArguments",
+      "category": "Event"
+    },
+    {
+      "type": "SampleApp.Contracts.OrderRejectedEvent",
+      "category": "Event"
+    },
+    {
+      "type": "SampleApp.Contracts.CheckOrderStatusRequest",
+      "category": "Request"
+    }
+  ],
+  "producers": [
+    {
+      "location": "OrderController.cs:L22 (OrderController.CreateOrder)",
+      "messageType": "SampleApp.Contracts.SubmitOrderCommand",
+      "callType": "Publish",
+      "project": "sample",
+      "codeSnippet": "    public async Task CreateOrder(Guid orderId, string customerId, decimal amount)\n    {\n        // Publicar comando\n        await _publishEndpoint.Publish\u003CSubmitOrderCommand\u003E(new SubmitOrderCommand\n        {\n            OrderId = orderId,\n            CustomerId = customerId,\n            TotalAmount = amount\n        });\n    }\n\n    public async Task\u003Cstring\u003E CheckStatus(Guid orderId)"
+    },
+    {
+      "location": "OrderController.cs:L33 (OrderController.CheckStatus)",
+      "messageType": "SampleApp.Contracts.OrderStatusResponse",
+      "callType": "Request",
+      "project": "sample",
+      "codeSnippet": "    public async Task\u003Cstring\u003E CheckStatus(Guid orderId)\n    {\n        // Enviar petici\u00F3n / request-response\n        var response = await _client.GetResponse\u003COrderStatusResponse\u003E(new CheckOrderStatusRequest\n        {\n            OrderId = orderId\n        });\n\n        return response.Message.Status;\n    }"
+    },
+    {
+      "location": "OrderSaga.cs:L21 (OrderSaga)",
+      "messageType": "SampleApp.Contracts.OrderAcceptedEvent",
+      "callType": "Publish",
+      "project": "sample",
+      "codeSnippet": "    public OrderSaga()\n    {\n        // Simular la configuraci\u00F3n fluida\n        this.Publish(new OrderAcceptedEvent\n        {\n            OrderId = Guid.NewGuid(),\n            AcceptedAt = DateTime.UtcNow\n        });\n    }\n}\n"
+    },
+    {
+      "location": "SubmitOrderConsumer.cs:L16 (SubmitOrderConsumer.Consume)",
+      "messageType": "SampleApp.Contracts.OrderRejectedEvent",
+      "callType": "Publish",
+      "project": "sample",
+      "codeSnippet": "\n        if (command.TotalAmount \u003C= 0)\n        {\n            await context.Publish\u003COrderRejectedEvent\u003E(new OrderRejectedEvent\n            {\n                OrderId = command.OrderId,\n                Reason = \u0022El monto debe ser mayor que cero.\u0022\n            });\n            return;\n        }\n"
+    },
+    {
+      "location": "SubmitOrderConsumer.cs:L25 (SubmitOrderConsumer.Consume)",
+      "messageType": "SampleApp.Contracts.OrderAcceptedEvent",
+      "callType": "Publish",
+      "project": "sample",
+      "codeSnippet": "        }\n\n        // Simular negocio y aceptar\n        await context.Publish\u003COrderAcceptedEvent\u003E(new OrderAcceptedEvent\n        {\n            OrderId = command.OrderId,\n            AcceptedAt = DateTime.UtcNow\n        });\n    }\n}\n"
+    },
+    {
+      "location": "OrderStatusConsumer.cs:L14 (OrderStatusConsumer.Consume)",
+      "messageType": "SampleApp.Contracts.OrderStatusResponse",
+      "callType": "Respond",
+      "project": "sample",
+      "codeSnippet": "        var request = context.Message;\n\n        // Responder a la solicitud\n        await context.RespondAsync\u003COrderStatusResponse\u003E(new OrderStatusResponse\n        {\n            OrderId = request.OrderId,\n            Status = \u0022Completed\u0022\n        });\n    }\n}\n"
+    }
+  ],
+  "consumers": [
+    {
+      "location": "SubmitOrderConsumer.cs:L8",
+      "messageType": "SampleApp.Contracts.SubmitOrderCommand",
+      "consumerType": "SampleApp.Consumers.SubmitOrderConsumer",
+      "project": "sample",
+      "codeSnippet": "\nnamespace SampleApp.Consumers;\n\npublic class SubmitOrderConsumer : IConsumer\u003CSubmitOrderCommand\u003E\n{\n    public async Task Consume(ConsumeContext\u003CSubmitOrderCommand\u003E context)\n    {\n        var command = context.Message;\n\n        if (command.TotalAmount \u003C= 0)\n        {\n            await context.Publish\u003COrderRejectedEvent\u003E(new OrderRejectedEvent\n            {\n                OrderId = command.OrderId,\n                Reason = \u0022El monto debe ser mayor que cero.\u0022\n            });\n            return;\n        }\n\n        // Simular negocio y aceptar\n        await context.Publish\u003COrderAcceptedEvent\u003E(new OrderAcceptedEvent\n        {\n            OrderId = command.OrderId,\n            AcceptedAt = DateTime.UtcNow\n        });\n    }"
+    },
+    {
+      "location": "OrderStatusConsumer.cs:L7",
+      "messageType": "SampleApp.Contracts.CheckOrderStatusRequest",
+      "consumerType": "SampleApp.Consumers.OrderStatusConsumer",
+      "project": "sample",
+      "codeSnippet": "\nnamespace SampleApp.Consumers;\n\npublic class OrderStatusConsumer : IConsumer\u003CCheckOrderStatusRequest\u003E\n{\n    public async Task Consume(ConsumeContext\u003CCheckOrderStatusRequest\u003E context)\n    {\n        var request = context.Message;\n\n        // Responder a la solicitud\n        await context.RespondAsync\u003COrderStatusResponse\u003E(new OrderStatusResponse\n        {\n            OrderId = request.OrderId,\n            Status = \u0022Completed\u0022\n        });\n    }\n}\n"
+    }
+  ],
+  "sagas": [
+    {
+      "location": "OrderSaga.cs:L13",
+      "sagaType": "SampleApp.Sagas.OrderSaga",
+      "consumedEvents": [
+        "SampleApp.Contracts.SubmitOrderCommand",
+        "SampleApp.Contracts.OrderAcceptedEvent"
+      ],
+      "publishedMessages": [
+        "SampleApp.Contracts.OrderAcceptedEvent"
+      ],
+      "project": "sample",
+      "codeSnippet": "    public string CurrentState { get; set; }\n}\n\npublic class OrderSaga : MassTransitStateMachine\u003COrderSagaState\u003E\n{\n    public Event\u003CSubmitOrderCommand\u003E OrderSubmitted { get; private set; }\n    public Event\u003COrderAcceptedEvent\u003E OrderAccepted { get; private set; }\n\n    public OrderSaga()\n    {\n        // Simular la configuraci\u00F3n fluida\n        this.Publish(new OrderAcceptedEvent\n        {\n            OrderId = Guid.NewGuid(),\n            AcceptedAt = DateTime.UtcNow\n        });\n    }\n}\n"
+    }
+  ],
+  "activities": [
+    {
+      "location": "PaymentActivity.cs:L7",
+      "activityType": "SampleApp.Activities.PaymentActivity",
+      "argumentsType": "SampleApp.Contracts.PaymentArguments",
+      "compensateLogType": null,
+      "project": "sample",
+      "codeSnippet": "\nnamespace SampleApp.Activities;\n\npublic class PaymentActivity : IExecuteActivity\u003CPaymentArguments\u003E\n{\n    public async Task\u003CExecutionResult\u003E Execute(ExecuteContext\u003CPaymentArguments\u003E context)\n    {\n        // Simular ejecuci\u00F3n del pago\n        return context.Completed();\n    }\n}\n"
+    }
+  ],
+  "scanTime": "2026-06-07T11:39:12.854547Z"
+}

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MessageFlowExplorer.Analyzer/MessageFlowExplorer.Analyzer.csproj" />
+    <Project Path="src/MessageFlowExplorer.Cli/MessageFlowExplorer.Cli.csproj" />
+    <Project Path="src/MessageFlowExplorer.Core/MessageFlowExplorer.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MessageFlowExplorer.Tests/MessageFlowExplorer.Tests.csproj" />
+  </Folder>
+</Solution>

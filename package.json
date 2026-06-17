@@ -1,0 +1,19 @@
+{
+  "name": "message-flow-explorer",
+  "version": "1.0.0",
+  "description": "Herramienta de análisis estático y visualización de flujos de mensajería MassTransit",
+  "scripts": {
+    "scan": "dotnet run --project src/MessageFlowExplorer.Cli/MessageFlowExplorer.Cli.csproj -- -i sample -o web/src/sample-output.json",
+    "web": "npm run dev --prefix web",
+    "dev": "npm run scan && npm run web"
+  },
+  "keywords": [
+    "dotnet",
+    "masstransit",
+    "roslyn",
+    "react-flow",
+    "topology"
+  ],
+  "author": "David De Leon Acosta",
+  "license": "MIT"
+}
