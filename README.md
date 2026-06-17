@@ -1,6 +1,6 @@
 # Message Flow Explorer 🔍🌐
 
-[![CI Build & Test](https://github.com/daviddeleonacosta/message-flow-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/daviddeleonacosta/message-flow-explorer/actions/workflows/ci.yml)
+[![CI Build & Test](https://github.com/dadeleac/message-flow-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/dadeleac/message-flow-explorer/actions/workflows/ci.yml)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blueviolet.svg?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
 [![React](https://img.shields.io/badge/React-19.0-blue.svg?style=flat-square&logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8.0-ffd845.svg?style=flat-square&logo=vite)](https://vite.dev/)
