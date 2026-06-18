@@ -63,12 +63,15 @@ class Program
         try
         {
             var scanner = new SolutionScanner();
-            var report = scanner.ScanDirectory(inputDir);
-
-            foreach (var diag in scanner.Diagnostics)
+            // Progreso en vivo: se imprime cada mensaje en cuanto ocurre para que
+            // en monorepos grandes se vea avanzar y no parezca bloqueado.
+            scanner.OnProgress = msg =>
             {
-                Console.WriteLine(diag);
-            }
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine($"  {msg}");
+                Console.ResetColor();
+            };
+            var report = scanner.ScanDirectory(inputDir);
 
             Console.WriteLine($"\nEscaneo finalizado con éxito:");
             Console.WriteLine($"  - Mensajes únicos encontrados: {report.Messages.Count}");

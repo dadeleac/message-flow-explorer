@@ -24,6 +24,22 @@ public class SolutionScanner
     /// <summary>Mensajes de diagnóstico del último escaneo (para mostrarlos en el CLI).</summary>
     public List<string> Diagnostics { get; } = new();
 
+    /// <summary>
+    /// Callback de progreso en vivo: se invoca a medida que avanza el escaneo
+    /// (proyectos/carpetas que se van revisando) para que el CLI lo muestre al
+    /// instante y no parezca que está bloqueado en monorepos grandes.
+    /// </summary>
+    public Action<string>? OnProgress { get; set; }
+
+    private void Report(string message)
+    {
+        lock (Diagnostics)
+        {
+            Diagnostics.Add(message);
+        }
+        OnProgress?.Invoke(message);
+    }
+
     public TopologyReport ScanDirectory(string directoryPath)
     {
         if (!Directory.Exists(directoryPath))
@@ -44,11 +60,13 @@ public class SolutionScanner
         // obtener compilaciones con TODAS las referencias resueltas (MassTransit,
         // MediatR, etc.). Eso hace que el SemanticModel resuelva los tipos por su
         // nombre totalmente cualificado y evita falsos "mensajes huérfanos".
+        Report("Buscando proyectos (.csproj)…");
         var csprojFiles = FindProjectFiles(directoryPath);
 
         bool analyzedWithMsBuild = false;
         if (csprojFiles.Count > 0)
         {
+            Report($"Se encontraron {csprojFiles.Count} proyecto(s) .csproj.");
             try
             {
                 AnalyzeWithMsBuild(csprojFiles, producers, consumers, sagas, activities, routingSlips, messageTypes);
@@ -56,7 +74,7 @@ public class SolutionScanner
             }
             catch (Exception ex)
             {
-                Diagnostics.Add($"[Aviso] Análisis con MSBuild falló ({ex.Message}). Usando análisis sintáctico de respaldo.");
+                Report($"[Aviso] Análisis con MSBuild falló ({ex.Message}). Usando análisis sintáctico de respaldo.");
                 producers.Clear();
                 consumers.Clear();
                 sagas.Clear();
@@ -70,7 +88,7 @@ public class SolutionScanner
         {
             if (csprojFiles.Count == 0)
             {
-                Diagnostics.Add("[Info] No se encontraron archivos .csproj. Usando análisis sintáctico de archivos sueltos (sin referencias externas).");
+                Report("[Info] No se encontraron archivos .csproj. Usando análisis sintáctico de archivos sueltos (sin referencias externas).");
             }
             AnalyzeAdHoc(directoryPath, producers, consumers, sagas, activities, routingSlips, messageTypes);
         }
@@ -97,6 +115,7 @@ public class SolutionScanner
         List<RoutingSlipInfo> routingSlips,
         HashSet<string> messageTypes)
     {
+        Report("Inicializando MSBuild…");
         EnsureMsBuildRegistered();
 
         using var workspace = MSBuildWorkspace.Create();
@@ -106,12 +125,16 @@ public class SolutionScanner
         {
             if (e.Diagnostic.Kind == WorkspaceDiagnosticKind.Failure)
             {
-                lock (Diagnostics) { Diagnostics.Add($"[MSBuild] {e.Diagnostic.Message}"); }
+                Report($"[MSBuild] {e.Diagnostic.Message}");
             }
         });
 
+        int total = csprojFiles.Count;
+        int index = 0;
         foreach (var csproj in csprojFiles)
         {
+            index++;
+
             // Un .csproj puede haberse cargado ya como referencia transitiva de otro
             // (p. ej. un proyecto de contratos compartido). Evitamos recargarlo.
             var fullPath = Path.GetFullPath(csproj);
@@ -123,11 +146,12 @@ public class SolutionScanner
 
             try
             {
+                Report($"[{index}/{total}] Cargando proyecto {Path.GetFileNameWithoutExtension(csproj)}…");
                 workspace.OpenProjectAsync(csproj).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
-                Diagnostics.Add($"[Aviso] No se pudo cargar el proyecto '{Path.GetFileName(csproj)}': {ex.Message}");
+                Report($"[Aviso] No se pudo cargar el proyecto '{Path.GetFileName(csproj)}': {ex.Message}");
             }
         }
 
@@ -140,12 +164,17 @@ public class SolutionScanner
             throw new InvalidOperationException("Ningún proyecto C# pudo cargarse con MSBuild.");
         }
 
-        Diagnostics.Add($"[Info] {projects.Count} proyecto(s) C# cargado(s) con MSBuild (referencias resueltas).");
+        Report($"[Info] {projects.Count} proyecto(s) C# cargado(s) con MSBuild (referencias resueltas).");
 
+        int analyzed = 0;
         foreach (var project in projects)
         {
+            analyzed++;
             var compilation = project.GetCompilationAsync().GetAwaiter().GetResult();
             if (compilation == null) continue;
+
+            var treeCount = compilation.SyntaxTrees.Count(t => !ShouldSkipTree(t.FilePath));
+            Report($"[{analyzed}/{projects.Count}] Analizando {project.Name} ({treeCount} archivo(s))…");
 
             foreach (var tree in compilation.SyntaxTrees)
             {
@@ -175,6 +204,14 @@ public class SolutionScanner
             .Where(file => !ExcludedDirectories.Any(dir => file.Split(Path.DirectorySeparatorChar).Contains(dir)))
             .ToList();
 
+        // Agrupamos por carpeta para ir informando qué directorio se revisa.
+        var byFolder = csharpFiles
+            .GroupBy(f => Path.GetDirectoryName(f) ?? directoryPath)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Report($"Revisando {csharpFiles.Count} archivo(s) .cs en {byFolder.Count} carpeta(s)…");
+
         var syntaxTrees = csharpFiles
             .Select(file => CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file))
             .ToList();
@@ -183,12 +220,26 @@ public class SolutionScanner
             .AddSyntaxTrees(syntaxTrees)
             .AddReferences(GetBaseReferences());
 
-        foreach (var tree in syntaxTrees)
+        var treeFolderLookup = syntaxTrees
+            .GroupBy(t => Path.GetDirectoryName(t.FilePath) ?? directoryPath)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        int folderIndex = 0;
+        foreach (var folder in byFolder)
         {
-            var semanticModel = compilation.GetSemanticModel(tree);
-            var walker = new MassTransitSyntaxWalker(semanticModel, directoryPath);
-            walker.Visit(tree.GetRoot());
-            Collect(walker, producers, consumers, sagas, activities, routingSlips, messageTypes);
+            folderIndex++;
+            var relative = Path.GetRelativePath(directoryPath, folder.Key);
+            if (string.IsNullOrEmpty(relative) || relative == ".") relative = Path.GetFileName(directoryPath);
+            Report($"[{folderIndex}/{byFolder.Count}] Revisando carpeta {relative} ({folder.Count()} archivo(s))…");
+
+            if (!treeFolderLookup.TryGetValue(folder.Key, out var folderTrees)) continue;
+            foreach (var tree in folderTrees)
+            {
+                var semanticModel = compilation.GetSemanticModel(tree);
+                var walker = new MassTransitSyntaxWalker(semanticModel, directoryPath);
+                walker.Visit(tree.GetRoot());
+                Collect(walker, producers, consumers, sagas, activities, routingSlips, messageTypes);
+            }
         }
     }
 
