@@ -5,7 +5,7 @@ namespace MessageFlowExplorer.Core;
 
 public record MessageInfo(string Type, string Category);
 
-public record ProducerInfo(string Location, string MessageType, string CallType, string Project = "Unknown", string? CodeSnippet = null, string Provider = "MassTransit");
+public record ProducerInfo(string Location, string MessageType, string CallType, string Project = "Unknown", string? CodeSnippet = null, string Provider = "MassTransit", string? ResponseType = null);
 
 public record ConsumerInfo(string Location, string MessageType, string ConsumerType, string Project = "Unknown", string? CodeSnippet = null, string Provider = "MassTransit");
 

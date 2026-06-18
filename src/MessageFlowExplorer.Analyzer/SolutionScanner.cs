@@ -129,6 +129,21 @@ public class SolutionScanner
             }
         });
 
+        // Progreso de carga en streaming: MSBuild emite un evento por cada proyecto
+        // a medida que lo evalúa/resuelve (incluidas las referencias transitivas que
+        // se cargan dentro de un único OpenProjectAsync). Esto evita el "hueco
+        // silencioso" en el que parecía colgado mientras cargaba todo el grafo.
+        var seenLoads = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var loadProgress = new Progress<ProjectLoadProgress>(pl =>
+        {
+            if (pl.FilePath == null) return;
+            lock (seenLoads)
+            {
+                if (!seenLoads.Add(pl.FilePath)) return;
+            }
+            Report($"   · cargando {Path.GetFileNameWithoutExtension(pl.FilePath)}…");
+        });
+
         int total = csprojFiles.Count;
         int index = 0;
         foreach (var csproj in csprojFiles)
@@ -146,8 +161,8 @@ public class SolutionScanner
 
             try
             {
-                Report($"[{index}/{total}] Cargando proyecto {Path.GetFileNameWithoutExtension(csproj)}…");
-                workspace.OpenProjectAsync(csproj).GetAwaiter().GetResult();
+                Report($"[{index}/{total}] Abriendo {Path.GetFileNameWithoutExtension(csproj)} y sus referencias…");
+                workspace.OpenProjectAsync(csproj, loadProgress).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

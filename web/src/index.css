@@ -1,35 +1,35 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  /* HSL Color Tokens */
-  --bg-primary: 224 71% 4%;
-  --bg-secondary: 224 71% 7%;
-  --bg-card: 224 71% 10%;
-  --bg-card-hover: 224 71% 14%;
-  
-  --border: 224 30% 18%;
-  --border-focus: 250 84% 60%;
-  
-  --text-primary: 210 40% 98%;
-  --text-secondary: 217 30% 68%;
-  --text-muted: 217 15% 45%;
+  /* HSL Color Tokens — Tema claro */
+  --bg-primary: 220 24% 97%;    /* Fondo de la app (gris muy claro) */
+  --bg-secondary: 220 20% 93%;
+  --bg-card: 0 0% 100%;         /* Tarjetas blancas */
+  --bg-card-hover: 220 24% 96%;
 
-  /* Node Categories */
-  --producer-base: 217 91% 60%; /* Blue */
-  --consumer-base: 142 71% 45%; /* Green */
-  --saga-base: 322 81% 58%;     /* Pink/Fuchsia */
-  --activity-base: 187 92% 43%; /* Cyan */
-  --routingslip-base: 35 92% 55%; /* Amber/Orange */
-  --mediatr-base: 263 70% 58%;  /* Amethyst/Violet */
-  
-  --command-base: 271 91% 65%;   /* Purple */
-  --event-base: 160 84% 39%;     /* Emerald */
-  --request-base: 32 95% 50%;     /* Amber */
+  --border: 220 16% 84%;
+  --border-focus: 250 84% 60%;
+
+  --text-primary: 222 47% 13%;  /* Casi negro */
+  --text-secondary: 222 16% 34%;
+  --text-muted: 222 12% 50%;
+
+  /* Node Categories (tonos algo más oscuros para contraste sobre blanco) */
+  --producer-base: 217 91% 52%; /* Blue */
+  --consumer-base: 142 64% 38%; /* Green */
+  --saga-base: 322 72% 50%;     /* Pink/Fuchsia */
+  --activity-base: 187 88% 36%; /* Cyan */
+  --routingslip-base: 33 90% 47%; /* Amber/Orange */
+  --mediatr-base: 263 64% 55%;  /* Amethyst/Violet */
+
+  --command-base: 271 76% 56%;   /* Purple */
+  --event-base: 160 70% 34%;     /* Emerald */
+  --request-base: 32 90% 45%;    /* Amber */
 
   --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', source-code-pro, Menlo, Monaco, Consolas, monospace;
-  
-  color-scheme: dark;
+
+  color-scheme: light;
 }
 
 * {
@@ -109,14 +109,14 @@ body, html, #root {
   flex-direction: column;
   gap: 6px;
   width: 250px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
 }
 
 .node-card:hover {
   transform: scale(1.02);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
 }
 
 .node-card-selected {
@@ -254,7 +254,7 @@ body, html, #root {
 .node-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: hsl(var(--text-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -310,13 +310,13 @@ body, html, #root {
   left: 16px;
   top: 16px;
   bottom: 16px;
-  width: 330px;
+  width: 420px;
   z-index: 10;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
   overflow-y: auto;
 }
 
@@ -327,7 +327,7 @@ body, html, #root {
 .sidebar-title {
   font-size: 20px;
   font-weight: 700;
-  color: #ffffff;
+  color: hsl(var(--text-primary));
   letter-spacing: -0.02em;
 }
 
@@ -407,7 +407,7 @@ body, html, #root {
 .stat-value {
   font-size: 20px;
   font-weight: 700;
-  color: #ffffff;
+  color: hsl(var(--text-primary));
 }
 
 .stat-label {
@@ -446,6 +446,21 @@ body, html, #root {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+}
+
+.filter-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: hsl(var(--text-secondary));
+  background: hsla(var(--border) / 0.4);
+  border: 1px solid hsla(var(--border) / 0.6);
+  border-radius: 999px;
+  padding: 1px 8px;
+  min-width: 24px;
+  text-align: center;
 }
 
 .filter-circle {
@@ -487,7 +502,7 @@ body, html, #root {
   background-color: hsla(var(--bg-card-hover) / 0.2);
   border: 1px solid hsla(var(--border) / 0.6);
   border-radius: 8px;
-  color: #ffffff;
+  color: hsl(var(--text-primary));
   font-family: var(--font-sans);
   transition: border-color 0.2s;
 }
@@ -552,7 +567,7 @@ body, html, #root {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: -8px 8px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: -8px 8px 28px rgba(15, 23, 42, 0.12);
   overflow-y: auto;
   animation: slide-in 0.3s ease-out;
 }
@@ -586,7 +601,7 @@ body, html, #root {
   width: fit-content;
 }
 
-.badge-default { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.badge-default { background: hsla(var(--border) / 0.4); color: hsl(var(--text-primary)); }
 .badge-producer { background: hsla(var(--producer-base) / 0.12); color: hsl(var(--producer-base)); border: 1px solid hsla(var(--producer-base) / 0.2); }
 .badge-consumer { background: hsla(var(--consumer-base) / 0.12); color: hsl(var(--consumer-base)); border: 1px solid hsla(var(--consumer-base) / 0.2); }
 .badge-saga { background: hsla(var(--saga-base) / 0.12); color: hsl(var(--saga-base)); border: 1px solid hsla(var(--saga-base) / 0.2); }
@@ -621,7 +636,7 @@ body, html, #root {
 .details-title {
   font-size: 15px;
   font-weight: 700;
-  color: #ffffff;
+  color: hsl(var(--text-primary));
   letter-spacing: -0.01em;
 }
 
@@ -640,7 +655,7 @@ body, html, #root {
 
 .close-button:hover {
   background-color: hsla(var(--border) / 0.5);
-  color: #ffffff;
+  color: hsl(var(--text-primary));
 }
 
 .details-section {
@@ -672,7 +687,7 @@ body, html, #root {
 
 .details-card-value {
   font-size: 12px;
-  color: #ffffff;
+  color: hsl(var(--text-primary));
   line-height: 1.5;
 }
 
@@ -883,7 +898,7 @@ body, html, #root {
   cursor: pointer;
   font-family: var(--font-sans);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
 }
 
 .btn-mermaid:hover {
@@ -1011,7 +1026,7 @@ body, html, #root {
 .warning-message-type {
   font-size: 12px;
   font-weight: 600;
-  color: #ffffff;
+  color: hsl(var(--text-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1102,21 +1117,21 @@ body, html, #root {
 }
 
 .code-kw {
-  color: hsl(271, 91%, 70%);
+  color: hsl(271, 76%, 50%);
   font-weight: 600;
 }
 
 .code-str {
-  color: hsl(160, 84%, 45%);
+  color: hsl(160, 70%, 30%);
 }
 
 .code-comment {
-  color: hsl(217, 15%, 50%);
+  color: hsl(222, 12%, 52%);
   font-style: italic;
 }
 
 .code-method {
-  color: hsl(187, 92%, 50%);
+  color: hsl(200, 85%, 38%);
   font-weight: 600;
 }
 

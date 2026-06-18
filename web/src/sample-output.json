@@ -5,8 +5,12 @@
       "category": "Command"
     },
     {
-      "type": "SampleApp.Contracts.OrderStatusResponse",
+      "type": "SampleApp.Contracts.CheckOrderStatusRequest",
       "category": "Request"
+    },
+    {
+      "type": "SampleApp.Contracts.OrderStatusResponse",
+      "category": "Event"
     },
     {
       "type": "SampleApp.Contracts.OrderAcceptedEvent",
@@ -27,10 +31,6 @@
     {
       "type": "SampleApp.Contracts.OrderRejectedEvent",
       "category": "Event"
-    },
-    {
-      "type": "SampleApp.Contracts.CheckOrderStatusRequest",
-      "category": "Request"
     }
   ],
   "producers": [
@@ -40,15 +40,17 @@
       "callType": "Publish",
       "project": "sample",
       "codeSnippet": "    public async Task CreateOrder(Guid orderId, string customerId, decimal amount)\n    {\n        // Publicar comando\n        await _publishEndpoint.Publish\u003CSubmitOrderCommand\u003E(new SubmitOrderCommand\n        {\n            OrderId = orderId,\n            CustomerId = customerId,\n            TotalAmount = amount\n        });\n    }\n\n    public async Task\u003Cstring\u003E CheckStatus(Guid orderId)",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "responseType": null
     },
     {
       "location": "OrderController.cs:L33 (OrderController.CheckStatus)",
-      "messageType": "SampleApp.Contracts.OrderStatusResponse",
+      "messageType": "SampleApp.Contracts.CheckOrderStatusRequest",
       "callType": "Request",
       "project": "sample",
       "codeSnippet": "    public async Task\u003Cstring\u003E CheckStatus(Guid orderId)\n    {\n        // Enviar petici\u00F3n / request-response\n        var response = await _client.GetResponse\u003COrderStatusResponse\u003E(new CheckOrderStatusRequest\n        {\n            OrderId = orderId\n        });\n\n        return response.Message.Status;\n    }",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "responseType": "SampleApp.Contracts.OrderStatusResponse"
     },
     {
       "location": "OrderSaga.cs:L21 (OrderSaga)",
@@ -56,7 +58,8 @@
       "callType": "Publish",
       "project": "sample",
       "codeSnippet": "    public OrderSaga()\n    {\n        // Simular la configuraci\u00F3n fluida\n        this.Publish(new OrderAcceptedEvent\n        {\n            OrderId = Guid.NewGuid(),\n            AcceptedAt = DateTime.UtcNow\n        });\n    }\n}\n",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "responseType": null
     },
     {
       "location": "CreateInvoiceHandler.cs:L40 (CreateInvoiceHandler.Handle)",
@@ -64,7 +67,8 @@
       "callType": "Publish",
       "project": "sample",
       "codeSnippet": "        var invoiceId = Guid.NewGuid();\n\n        // Notificar que la factura fue creada (MediatR in-process)\n        await _mediator.Publish(new InvoiceCreatedNotification\n        {\n            InvoiceId = invoiceId,\n            OrderId = request.OrderId\n        });\n\n        return new CreateInvoiceResponse { InvoiceId = invoiceId, Success = true };\n    }",
-      "provider": "MediatR"
+      "provider": "MediatR",
+      "responseType": null
     },
     {
       "location": "SubmitOrderConsumer.cs:L16 (SubmitOrderConsumer.Consume)",
@@ -72,7 +76,8 @@
       "callType": "Publish",
       "project": "sample",
       "codeSnippet": "\n        if (command.TotalAmount \u003C= 0)\n        {\n            await context.Publish\u003COrderRejectedEvent\u003E(new OrderRejectedEvent\n            {\n                OrderId = command.OrderId,\n                Reason = \u0022El monto debe ser mayor que cero.\u0022\n            });\n            return;\n        }\n",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "responseType": null
     },
     {
       "location": "SubmitOrderConsumer.cs:L25 (SubmitOrderConsumer.Consume)",
@@ -80,7 +85,8 @@
       "callType": "Publish",
       "project": "sample",
       "codeSnippet": "        }\n\n        // Simular negocio y aceptar\n        await context.Publish\u003COrderAcceptedEvent\u003E(new OrderAcceptedEvent\n        {\n            OrderId = command.OrderId,\n            AcceptedAt = DateTime.UtcNow\n        });\n    }\n}\n",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "responseType": null
     },
     {
       "location": "InvoiceController.cs:L17 (InvoiceController.CreateInvoice)",
@@ -88,7 +94,8 @@
       "callType": "Send",
       "project": "sample",
       "codeSnippet": "\n    public async Task\u003CCreateInvoiceResponse\u003E CreateInvoice(Guid orderId, decimal amount)\n    {\n        var response = await _mediator.Send(new CreateInvoiceCommand\n        {\n            OrderId = orderId,\n            Amount = amount,\n            CustomerEmail = \u0022customer@example.com\u0022\n        });\n\n        return response;\n    }",
-      "provider": "MediatR"
+      "provider": "MediatR",
+      "responseType": null
     },
     {
       "location": "OrderStatusConsumer.cs:L14 (OrderStatusConsumer.Consume)",
@@ -96,10 +103,19 @@
       "callType": "Respond",
       "project": "sample",
       "codeSnippet": "        var request = context.Message;\n\n        // Responder a la solicitud\n        await context.RespondAsync\u003COrderStatusResponse\u003E(new OrderStatusResponse\n        {\n            OrderId = request.OrderId,\n            Status = \u0022Completed\u0022\n        });\n    }\n}\n",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "responseType": null
     }
   ],
   "consumers": [
+    {
+      "location": "OrderController.cs:L33 (OrderController.CheckStatus)",
+      "messageType": "SampleApp.Contracts.OrderStatusResponse",
+      "consumerType": "SampleApp.Controllers.OrderController",
+      "project": "sample",
+      "codeSnippet": "    public async Task\u003Cstring\u003E CheckStatus(Guid orderId)\n    {\n        // Enviar petici\u00F3n / request-response\n        var response = await _client.GetResponse\u003COrderStatusResponse\u003E(new CheckOrderStatusRequest\n        {\n            OrderId = orderId\n        });\n\n        return response.Message.Status;\n    }",
+      "provider": "MassTransit"
+    },
     {
       "location": "CreateInvoiceHandler.cs:L25",
       "messageType": "SampleApp.MediatR.CreateInvoiceCommand",
@@ -183,5 +199,5 @@
       "codeSnippet": "\n    public OrderFulfillmentRoutingSlip(IBus bus) =\u003E _bus = bus;\n\n    public async Task Execute(Guid orderId, decimal amount, string address)\n    {\n        var builder = new RoutingSlipBuilder(NewId.NextGuid());\n\n        builder.AddActivity(\u0022Payment\u0022, new Uri(\u0022queue:payment_execute\u0022), new PaymentArguments\n        {\n            OrderId = orderId,\n            Amount = amount\n        });\n\n        builder.AddActivity(\u0022Shipping\u0022, new Uri(\u0022queue:shipping_execute\u0022), new ShippingArguments\n        {\n            OrderId = orderId,\n            Address = address\n        });\n\n        builder.AddActivity(\u0022Notification\u0022, new Uri(\u0022queue:notification_execute\u0022), new NotificationArguments\n        {\n            OrderId = orderId\n        });\n\n        builder.AddSubscription(new Uri(\u0022queue:order_events\u0022), RoutingSlipEvents.Completed);\n\n        var routingSlip = builder.Build();\n        await _bus.Execute(routingSlip);\n    }\n}\n"
     }
   ],
-  "scanTime": "2026-06-15T10:49:24.811796Z"
+  "scanTime": "2026-06-18T13:23:06.958571Z"
 }

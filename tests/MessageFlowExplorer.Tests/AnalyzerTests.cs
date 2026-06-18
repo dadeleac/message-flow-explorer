@@ -290,6 +290,105 @@ public class OrderController
         Assert.Equal("MediatR", producer.Provider);
     }
 
+    [Fact]
+    public void Should_Treat_GetResponse_Argument_As_Request_And_Generic_As_Response()
+    {
+        var code = @"
+using System.Threading.Tasks;
+
+namespace TestNamespace;
+
+public class Response<T> { }
+public interface IRequestClient<TRequest> where TRequest : class
+{
+    Task<Response<TResponse>> GetResponse<TResponse>(object request);
+}
+
+public class CheckStatusRequest { }
+public class StatusResponse { }
+
+public class OrderController
+{
+    private readonly IRequestClient<CheckStatusRequest> _client;
+    public OrderController(IRequestClient<CheckStatusRequest> client) { _client = client; }
+
+    public async Task Check()
+    {
+        await _client.GetResponse<StatusResponse>(new CheckStatusRequest());
+    }
+}
+";
+        var (semanticModel, syntaxTree) = CreateSemanticModel(code);
+        var walker = new MassTransitSyntaxWalker(semanticModel);
+        walker.Visit(syntaxTree.GetRoot());
+
+        // El mensaje publicado es la PETICIÓN (argumento), no la respuesta (genérico).
+        var producer = Assert.Single(walker.Producers);
+        Assert.Equal("TestNamespace.CheckStatusRequest", producer.MessageType);
+        Assert.Equal("Request", producer.CallType);
+        Assert.Equal("TestNamespace.StatusResponse", producer.ResponseType);
+
+        // El solicitante se modela como consumidor de la respuesta (cierre del bucle).
+        var consumer = Assert.Single(walker.Consumers);
+        Assert.Equal("TestNamespace.StatusResponse", consumer.MessageType);
+        Assert.Equal("TestNamespace.OrderController", consumer.ConsumerType);
+    }
+
+    [Fact]
+    public void Custom_Publisher_Wrapper_Is_Not_Misclassified_As_MediatR()
+    {
+        // Patrón común: envolver MassTransit tras una interfaz propia que termina en
+        // "Publisher"/"Sender". No debe clasificarse como MediatR por el sufijo.
+        var code = @"
+using System.Threading.Tasks;
+
+namespace MyApp.Messaging;
+
+public interface IEventPublisher
+{
+    Task Publish<T>(T message);
+}
+
+public class OrderCreated { }
+
+public class OrderService
+{
+    private readonly IEventPublisher _eventPublisher;
+    public OrderService(IEventPublisher eventPublisher) { _eventPublisher = eventPublisher; }
+    public async Task Create() => await _eventPublisher.Publish(new OrderCreated());
+}
+";
+        var (semanticModel, syntaxTree) = CreateSemanticModel(code);
+        var walker = new MassTransitSyntaxWalker(semanticModel);
+        walker.Visit(syntaxTree.GetRoot());
+
+        var producer = Assert.Single(walker.Producers);
+        Assert.Equal("MyApp.Messaging.OrderCreated", producer.MessageType);
+        Assert.Equal("MassTransit", producer.Provider);
+    }
+
+    [Fact]
+    public void Should_Unwrap_Batch_Consumer_To_Inner_Message()
+    {
+        var code = @"
+namespace TestNamespace;
+
+public class Batch<T> { }
+public interface IConsumer<T> where T : class { }
+
+public class OrderEvent { }
+
+public class OrderBatchConsumer : IConsumer<Batch<OrderEvent>> { }
+";
+        var (semanticModel, syntaxTree) = CreateSemanticModel(code);
+        var walker = new MassTransitSyntaxWalker(semanticModel);
+        walker.Visit(syntaxTree.GetRoot());
+
+        var consumer = Assert.Single(walker.Consumers);
+        Assert.Equal("TestNamespace.OrderEvent", consumer.MessageType);
+        Assert.Equal("TestNamespace.OrderBatchConsumer", consumer.ConsumerType);
+    }
+
     private const string RoutingSlipStubs = @"
 using System;
 namespace MassTransit

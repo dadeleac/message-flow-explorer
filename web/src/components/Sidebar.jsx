@@ -3,6 +3,7 @@ import { Upload, Search, BarChart3, Filter, ShieldAlert } from 'lucide-react';
 
 export default function Sidebar({
   stats,
+  filterCounts = { command: 0, event: 0, request: 0, mediatr: 0 },
   searchQuery,
   setSearchQuery,
   filters,
@@ -128,10 +129,11 @@ export default function Sidebar({
             <div className="filter-info">
               <span className="filter-circle bg-command"></span>
               <span className="filter-text">Commands</span>
+              <span className="filter-count">{filterCounts.command}</span>
             </div>
-            <input 
-              type="checkbox" 
-              checked={filters.command} 
+            <input
+              type="checkbox"
+              checked={filters.command}
               onChange={() => toggleFilter('command')}
               className="filter-checkbox"
             />
@@ -140,10 +142,11 @@ export default function Sidebar({
             <div className="filter-info">
               <span className="filter-circle bg-event"></span>
               <span className="filter-text">Events</span>
+              <span className="filter-count">{filterCounts.event}</span>
             </div>
-            <input 
-              type="checkbox" 
-              checked={filters.event} 
+            <input
+              type="checkbox"
+              checked={filters.event}
               onChange={() => toggleFilter('event')}
               className="filter-checkbox"
             />
@@ -152,10 +155,11 @@ export default function Sidebar({
             <div className="filter-info">
               <span className="filter-circle bg-request"></span>
               <span className="filter-text">Requests / Responses</span>
+              <span className="filter-count">{filterCounts.request}</span>
             </div>
-            <input 
-              type="checkbox" 
-              checked={filters.request} 
+            <input
+              type="checkbox"
+              checked={filters.request}
               onChange={() => toggleFilter('request')}
               className="filter-checkbox"
             />
@@ -164,10 +168,11 @@ export default function Sidebar({
             <div className="filter-info">
               <span className="filter-circle" style={{ backgroundColor: 'hsl(263 70% 58%)' }}></span>
               <span className="filter-text">MediatR (Flujos Locales)</span>
+              <span className="filter-count">{filterCounts.mediatr}</span>
             </div>
-            <input 
-              type="checkbox" 
-              checked={showMediatR} 
+            <input
+              type="checkbox"
+              checked={showMediatR}
               onChange={(e) => onShowMediatRChange && onShowMediatRChange(e.target.checked)}
               className="filter-checkbox"
             />

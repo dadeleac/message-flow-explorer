@@ -818,6 +818,27 @@ export default function App() {
     setSelectedProjects(null);
   };
 
+  // Conteo por filtro (sobre el total de datos) para dar feedback de la distribución:
+  // así se ve por qué al desmarcar Commands o MediatR puede vaciarse el grafo.
+  const filterCounts = useMemo(() => {
+    const msgs = data.messages || [];
+    const byCat = { command: 0, event: 0, request: 0 };
+    msgs.forEach(m => {
+      const c = (m.category || 'Event').toLowerCase();
+      if (c in byCat) byCat[c]++;
+    });
+    const mediatrMsgs = new Set();
+    (data.producers || []).forEach(p => { if (p.provider === 'MediatR') mediatrMsgs.add(p.messageType); });
+    (data.consumers || []).forEach(c => { if (c.provider === 'MediatR') mediatrMsgs.add(c.messageType); });
+    return {
+      command: byCat.command,
+      event: byCat.event,
+      request: byCat.request,
+      mediatr: mediatrMsgs.size,
+      total: msgs.length
+    };
+  }, [data]);
+
   // Calcular estadísticas para el Sidebar
   const stats = useMemo(() => {
     const messages = data.messages || [];
@@ -859,8 +880,8 @@ export default function App() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#0b0d19',
-          color: '#fff',
+          backgroundColor: 'hsl(var(--bg-primary))',
+          color: 'hsl(var(--text-primary))',
           zIndex: 1000,
           fontFamily: 'sans-serif'
         }}>
@@ -873,6 +894,7 @@ export default function App() {
       {/* Sidebar */}
       <Sidebar
         stats={stats}
+        filterCounts={filterCounts}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         filters={filters}
@@ -913,7 +935,7 @@ export default function App() {
                 if (node.data.category === 'Request') return 'hsl(var(--request-base))';
                 return 'hsl(var(--event-base))';
               }
-              return '#1a192b';
+              return 'hsl(220 13% 75%)';
             }}
             maskColor="hsla(var(--bg-primary) / 0.7)"
             className="border border-white/[0.05] rounded-lg overflow-hidden !bg-black/30 backdrop-blur-md"

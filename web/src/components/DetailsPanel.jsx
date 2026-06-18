@@ -402,11 +402,14 @@ export default function DetailsPanel({ node, onClose, allData }) {
     }
 
     if (isProducer) {
-      // Outputs: mensajes que publica este productor
+      // Outputs: mensajes que publica este productor (agrupado por ubicación).
+      // En request/response anotamos la respuesta esperada (request → response).
       const outputs = allData.producers
-        .filter(p => p.location === data.location && p.messageType === data.messageType)
+        .filter(p => p.location === data.location)
         .map(p => ({
-          label: p.messageType.split('.').pop(),
+          label: p.responseType
+            ? `${p.messageType.split('.').pop()} → ${p.responseType.split('.').pop()}`
+            : p.messageType.split('.').pop(),
           type: 'Message'
         }));
       return { inputs: [], outputs };

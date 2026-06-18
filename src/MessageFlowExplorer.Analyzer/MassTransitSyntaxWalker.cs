@@ -145,7 +145,8 @@ public class MassTransitSyntaxWalker : CSharpSyntaxWalker
                 var interfaceName = genericName.Identifier.Text;
                 if (interfaceName == "IConsumer" && genericName.TypeArgumentList.Arguments.Count == 1)
                 {
-                    var messageTypeSyntax = genericName.TypeArgumentList.Arguments[0];
+                    // Batch consumers: IConsumer<Batch<T>> consume realmente T.
+                    var messageTypeSyntax = UnwrapBatch(genericName.TypeArgumentList.Arguments[0]);
                     var messageTypeName = GetTypeDisplayString(messageTypeSyntax);
                     var location = GetLocationDescription(node);
                     var consumerTypeName = GetClassDisplayString(node);
@@ -175,6 +176,17 @@ public class MassTransitSyntaxWalker : CSharpSyntaxWalker
                 }
             }
         }
+    }
+
+    /// <summary>Si el tipo es Batch&lt;T&gt; devuelve T; en caso contrario, el tipo original.</summary>
+    private TypeSyntax UnwrapBatch(TypeSyntax typeSyntax)
+    {
+        var generic = GetGenericName(typeSyntax);
+        if (generic != null && generic.Identifier.Text == "Batch" && generic.TypeArgumentList.Arguments.Count == 1)
+        {
+            return generic.TypeArgumentList.Arguments[0];
+        }
+        return typeSyntax;
     }
 
     private string GetTypeDisplayString(TypeSyntax typeSyntax)
@@ -310,52 +322,37 @@ public class MassTransitSyntaxWalker : CSharpSyntaxWalker
         if (callType == null) return;
 
         string? messageTypeName = null;
+        string? responseType = null;
 
-        // Caso 1: Llamada genérica, ej: Publish<OrderCreated>(...)
-        if (memberAccess.Name is GenericNameSyntax genericName)
+        var genericArg0 = (memberAccess.Name is GenericNameSyntax gn && gn.TypeArgumentList.Arguments.Count >= 1)
+            ? gn.TypeArgumentList.Arguments[0]
+            : null;
+        var argType = node.ArgumentList.Arguments.Count >= 1
+            ? GetExpressionTypeName(node.ArgumentList.Arguments[0].Expression)
+            : null;
+
+        if (callType == "Request")
         {
-            if (genericName.TypeArgumentList.Arguments.Count >= 1)
+            // Request/response, p. ej. client.GetResponse<TResponse>(new TRequest()).
+            // El MENSAJE QUE SE ENVÍA es el argumento (la petición); el genérico es la
+            // RESPUESTA esperada. (Antes se tomaba el genérico como mensaje, lo que
+            // registraba erróneamente la respuesta como mensaje publicado.)
+            messageTypeName = argType;
+            if (genericArg0 != null)
             {
-                var msgTypeSyntax = genericName.TypeArgumentList.Arguments[0];
-                messageTypeName = msgTypeSyntax.ToString();
-
-                if (_semanticModel != null)
-                {
-                    var typeInfo = _semanticModel.GetTypeInfo(msgTypeSyntax);
-                    if (typeInfo.Type != null && typeInfo.Type.Kind != SymbolKind.ErrorType)
-                    {
-                        messageTypeName = typeInfo.Type.ToDisplayString();
-                    }
-                }
+                responseType = GetTypeDisplayString(genericArg0);
+            }
+            // Degradación: si no hay argumento legible, usar el genérico como mensaje.
+            if (messageTypeName == null && genericArg0 != null)
+            {
+                messageTypeName = GetTypeDisplayString(genericArg0);
+                responseType = null;
             }
         }
-        
-        // Caso 2: Llamada no genérica, ej: Publish(new OrderCreated())
-        if (messageTypeName == null && node.ArgumentList.Arguments.Count >= 1)
+        else
         {
-            var firstArg = node.ArgumentList.Arguments[0].Expression;
-
-            if (_semanticModel != null)
-            {
-                var typeInfo = _semanticModel.GetTypeInfo(firstArg);
-                if (typeInfo.Type != null && typeInfo.Type.Kind != SymbolKind.ErrorType)
-                {
-                    messageTypeName = typeInfo.Type.ToDisplayString();
-                }
-            }
-
-            // Fallback sintáctico
-            if (messageTypeName == null)
-            {
-                if (firstArg is ObjectCreationExpressionSyntax objCreation)
-                {
-                    messageTypeName = objCreation.Type.ToString();
-                }
-                else if (firstArg is IdentifierNameSyntax identifier)
-                {
-                    messageTypeName = identifier.Identifier.Text;
-                }
-            }
+            // Publish/Send/Respond: genérico primero, si no, el argumento.
+            messageTypeName = genericArg0 != null ? GetTypeDisplayString(genericArg0) : argType;
         }
 
         if (messageTypeName != null)
@@ -364,13 +361,40 @@ public class MassTransitSyntaxWalker : CSharpSyntaxWalker
             var project = GetProjectName(node);
             var location = GetLocationDescription(node);
             var codeSnippet = GetCodeSnippet(node);
-            Producers.Add(new ProducerInfo(location, messageTypeName, callType, project, codeSnippet, provider));
-            
+            Producers.Add(new ProducerInfo(location, messageTypeName, callType, project, codeSnippet, provider, responseType));
+
             if (_inSaga && provider == "MassTransit")
             {
                 _currentSagaPublished.Add(messageTypeName);
             }
+
+            // Cierre del bucle request/response: el solicitante RECIBE la respuesta.
+            // Lo modelamos como un consumidor de la respuesta en la clase que llama,
+            // de modo que la respuesta no aparezca como mensaje huérfano y se dibuje
+            // la arista de vuelta.
+            if (callType == "Request" && responseType != null)
+            {
+                var requesterClass = node.Ancestors().OfType<ClassDeclarationSyntax>().FirstOrDefault();
+                var requesterName = requesterClass != null ? GetClassDisplayString(requesterClass) : "Requester";
+                Consumers.Add(new ConsumerInfo(location, responseType, requesterName, project, codeSnippet, provider));
+            }
         }
+    }
+
+    /// <summary>Resuelve el nombre del tipo de una expresión (semántico, con fallback sintáctico).</summary>
+    private string? GetExpressionTypeName(ExpressionSyntax expr)
+    {
+        if (_semanticModel != null)
+        {
+            var typeInfo = _semanticModel.GetTypeInfo(expr);
+            if (typeInfo.Type != null && typeInfo.Type.Kind != SymbolKind.ErrorType)
+            {
+                return typeInfo.Type.ToDisplayString();
+            }
+        }
+        if (expr is ObjectCreationExpressionSyntax objCreation) return objCreation.Type.ToString();
+        if (expr is IdentifierNameSyntax identifier) return identifier.Identifier.Text;
+        return null;
     }
 
     // ------------------------------------------------------------------
@@ -585,38 +609,66 @@ public class MassTransitSyntaxWalker : CSharpSyntaxWalker
                || s.IndexOf("routingslip", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
+    // Nombres EXACTOS de las interfaces reales de cada librería (sin sufijos amplios:
+    // un wrapper propio como IEventPublisher/ICommandSender NO debe contar como MediatR).
+    private static readonly HashSet<string> MediatRTypeNames = new()
+        { "IMediator", "ISender", "IPublisher" };
+    private static readonly HashSet<string> MassTransitTypeNames = new()
+        { "IBus", "IBusControl", "IPublishEndpoint", "ISendEndpoint", "ISendEndpointProvider",
+          "IRequestClient", "ConsumeContext", "ConsumeContext`1" };
+
     private string DetermineProvider(ExpressionSyntax receiverExpression)
     {
         if (_semanticModel != null)
         {
-            var typeInfo = _semanticModel.GetTypeInfo(receiverExpression);
-            if (typeInfo.Type != null && typeInfo.Type.Kind != SymbolKind.ErrorType)
+            var type = _semanticModel.GetTypeInfo(receiverExpression).Type;
+            if (type != null && type.Kind != SymbolKind.ErrorType)
             {
-                var typeStr = typeInfo.Type.ToDisplayString();
-                if (typeStr.Contains("MediatR") || typeStr.EndsWith("IMediator") || typeStr.EndsWith("ISender") || typeStr.EndsWith("IPublisher"))
+                var provider = ProviderFromType(type);
+                if (provider != null) return provider;
+
+                // El receptor es un tipo propio (p. ej. un wrapper IEventPublisher).
+                // Miramos las interfaces que implementa por si envuelven a una de las
+                // librerías conocidas.
+                foreach (var iface in type.AllInterfaces)
                 {
-                    return "MediatR";
+                    var p = ProviderFromType(iface);
+                    if (p != null) return p;
                 }
-                if (typeStr.Contains("MassTransit") || typeStr.EndsWith("IBus") || typeStr.EndsWith("IPublishEndpoint") || typeStr.EndsWith("ISendEndpoint") || typeStr.EndsWith("ConsumeContext"))
-                {
-                    return "MassTransit";
-                }
+
+                // Wrapper sin pistas: por defecto MassTransit (bus entre servicios).
+                return "MassTransit";
             }
         }
 
-        // Fallback sintáctico
+        // Fallback puramente sintáctico (sin semántica disponible): solo marcamos
+        // MediatR ante señales inequívocas. "publisher"/"sender" son demasiado
+        // ambiguos (los wrappers de MassTransit suelen llamarse así), así que NO se usan.
         var exprStr = receiverExpression.ToString().ToLowerInvariant();
-        if (exprStr.Contains("mediator") || exprStr.Contains("sender") || exprStr.Contains("publisher") || exprStr.Contains("mediatr"))
+        if (exprStr.Contains("mediatr") || exprStr.Contains("mediator"))
         {
             return "MediatR";
         }
-
-        if (exprStr.Contains("context") || exprStr.Contains("bus") || exprStr.Contains("endpoint"))
-        {
-            return "MassTransit";
-        }
-
         return "MassTransit"; // Predeterminado
+    }
+
+    /// <summary>Devuelve "MediatR"/"MassTransit" según el namespace real del tipo, o por
+    /// el nombre exacto de la interfaz (para stubs/casos sin namespace de librería); null si no se sabe.</summary>
+    private static string? ProviderFromType(ITypeSymbol type)
+    {
+        var ns = type.ContainingNamespace?.ToDisplayString() ?? "";
+        if (NamespaceMatches(ns, "MediatR")) return "MediatR";
+        if (NamespaceMatches(ns, "MassTransit")) return "MassTransit";
+
+        var name = type.Name;
+        if (MediatRTypeNames.Contains(name)) return "MediatR";
+        if (MassTransitTypeNames.Contains(name)) return "MassTransit";
+        return null;
+    }
+
+    private static bool NamespaceMatches(string ns, string root)
+    {
+        return ns == root || ns.StartsWith(root + ".", StringComparison.Ordinal);
     }
 
     private string? GetCallTypeFromMethodName(string methodName)
