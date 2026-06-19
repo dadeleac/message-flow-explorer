@@ -1274,3 +1274,48 @@ body, html, #root {
 .node-routingslip.node-rs-warning {
   border-color: hsla(45 100% 50% / 0.5);
 }
+
+/* ============================================
+   Aviso de vista demasiado grande (guard de escala)
+   ============================================ */
+.scale-guard {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  padding-left: 460px; /* deja sitio al sidebar */
+}
+.scale-guard-card {
+  max-width: 560px;
+  padding: 28px 32px;
+  border-radius: 16px;
+}
+.scale-guard-card h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: hsl(var(--text-primary));
+  margin-bottom: 12px;
+}
+.scale-guard-card p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: hsl(var(--text-secondary));
+  margin-bottom: 10px;
+}
+.scale-guard-card strong {
+  color: hsl(var(--text-primary));
+  font-weight: 700;
+}
+.scale-guard-card ul {
+  margin: 8px 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.scale-guard-card li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: hsl(var(--text-secondary));
+}

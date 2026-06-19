@@ -2,7 +2,7 @@
   "messages": [
     {
       "type": "SampleApp.Contracts.SubmitOrderCommand",
-      "category": "Command"
+      "category": "Event"
     },
     {
       "type": "SampleApp.Contracts.CheckOrderStatusRequest",
@@ -10,7 +10,7 @@
     },
     {
       "type": "SampleApp.Contracts.OrderStatusResponse",
-      "category": "Event"
+      "category": "Request"
     },
     {
       "type": "SampleApp.Contracts.OrderAcceptedEvent",
@@ -22,7 +22,7 @@
     },
     {
       "type": "SampleApp.MediatR.CreateInvoiceCommand",
-      "category": "Command"
+      "category": "Request"
     },
     {
       "type": "SampleApp.Contracts.PaymentArguments",
@@ -114,7 +114,8 @@
       "consumerType": "SampleApp.Controllers.OrderController",
       "project": "sample",
       "codeSnippet": "    public async Task\u003Cstring\u003E CheckStatus(Guid orderId)\n    {\n        // Enviar petici\u00F3n / request-response\n        var response = await _client.GetResponse\u003COrderStatusResponse\u003E(new CheckOrderStatusRequest\n        {\n            OrderId = orderId\n        });\n\n        return response.Message.Status;\n    }",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "kind": "Consumer"
     },
     {
       "location": "CreateInvoiceHandler.cs:L25",
@@ -122,7 +123,8 @@
       "consumerType": "SampleApp.MediatR.CreateInvoiceHandler",
       "project": "sample",
       "codeSnippet": "    Task Publish\u003CTNotification\u003E(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification;\n}\n\npublic class CreateInvoiceHandler : IRequestHandler\u003CCreateInvoiceCommand, CreateInvoiceResponse\u003E\n{\n    private readonly IMediator _mediator;\n\n    public CreateInvoiceHandler(IMediator mediator)\n    {\n        _mediator = mediator;\n    }\n\n    public async Task\u003CCreateInvoiceResponse\u003E Handle(CreateInvoiceCommand request, CancellationToken cancellationToken)\n    {\n        // L\u00F3gica de creaci\u00F3n de factura...\n        var invoiceId = Guid.NewGuid();\n\n        // Notificar que la factura fue creada (MediatR in-process)\n        await _mediator.Publish(new InvoiceCreatedNotification\n        {\n            InvoiceId = invoiceId,\n            OrderId = request.OrderId\n        });\n\n        return new CreateInvoiceResponse { InvoiceId = invoiceId, Success = true };\n    }",
-      "provider": "MediatR"
+      "provider": "MediatR",
+      "kind": "RequestHandler"
     },
     {
       "location": "CreateInvoiceHandler.cs:L50",
@@ -130,7 +132,8 @@
       "consumerType": "SampleApp.MediatR.InvoiceCreatedEmailHandler",
       "project": "sample",
       "codeSnippet": "    }\n}\n\npublic class InvoiceCreatedEmailHandler : INotificationHandler\u003CInvoiceCreatedNotification\u003E\n{\n    public Task Handle(InvoiceCreatedNotification notification, CancellationToken cancellationToken)\n    {\n        // Enviar email de factura creada\n        return Task.CompletedTask;\n    }\n}\n",
-      "provider": "MediatR"
+      "provider": "MediatR",
+      "kind": "NotificationHandler"
     },
     {
       "location": "SubmitOrderConsumer.cs:L8",
@@ -138,7 +141,8 @@
       "consumerType": "SampleApp.Consumers.SubmitOrderConsumer",
       "project": "sample",
       "codeSnippet": "\nnamespace SampleApp.Consumers;\n\npublic class SubmitOrderConsumer : IConsumer\u003CSubmitOrderCommand\u003E\n{\n    public async Task Consume(ConsumeContext\u003CSubmitOrderCommand\u003E context)\n    {\n        var command = context.Message;\n\n        if (command.TotalAmount \u003C= 0)\n        {\n            await context.Publish\u003COrderRejectedEvent\u003E(new OrderRejectedEvent\n            {\n                OrderId = command.OrderId,\n                Reason = \u0022El monto debe ser mayor que cero.\u0022\n            });\n            return;\n        }\n\n        // Simular negocio y aceptar\n        await context.Publish\u003COrderAcceptedEvent\u003E(new OrderAcceptedEvent\n        {\n            OrderId = command.OrderId,\n            AcceptedAt = DateTime.UtcNow\n        });\n    }",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "kind": "Consumer"
     },
     {
       "location": "OrderStatusConsumer.cs:L7",
@@ -146,7 +150,8 @@
       "consumerType": "SampleApp.Consumers.OrderStatusConsumer",
       "project": "sample",
       "codeSnippet": "\nnamespace SampleApp.Consumers;\n\npublic class OrderStatusConsumer : IConsumer\u003CCheckOrderStatusRequest\u003E\n{\n    public async Task Consume(ConsumeContext\u003CCheckOrderStatusRequest\u003E context)\n    {\n        var request = context.Message;\n\n        // Responder a la solicitud\n        await context.RespondAsync\u003COrderStatusResponse\u003E(new OrderStatusResponse\n        {\n            OrderId = request.OrderId,\n            Status = \u0022Completed\u0022\n        });\n    }\n}\n",
-      "provider": "MassTransit"
+      "provider": "MassTransit",
+      "kind": "Consumer"
     }
   ],
   "sagas": [
@@ -199,5 +204,5 @@
       "codeSnippet": "\n    public OrderFulfillmentRoutingSlip(IBus bus) =\u003E _bus = bus;\n\n    public async Task Execute(Guid orderId, decimal amount, string address)\n    {\n        var builder = new RoutingSlipBuilder(NewId.NextGuid());\n\n        builder.AddActivity(\u0022Payment\u0022, new Uri(\u0022queue:payment_execute\u0022), new PaymentArguments\n        {\n            OrderId = orderId,\n            Amount = amount\n        });\n\n        builder.AddActivity(\u0022Shipping\u0022, new Uri(\u0022queue:shipping_execute\u0022), new ShippingArguments\n        {\n            OrderId = orderId,\n            Address = address\n        });\n\n        builder.AddActivity(\u0022Notification\u0022, new Uri(\u0022queue:notification_execute\u0022), new NotificationArguments\n        {\n            OrderId = orderId\n        });\n\n        builder.AddSubscription(new Uri(\u0022queue:order_events\u0022), RoutingSlipEvents.Completed);\n\n        var routingSlip = builder.Build();\n        await _bus.Execute(routingSlip);\n    }\n}\n"
     }
   ],
-  "scanTime": "2026-06-18T13:23:06.958571Z"
+  "scanTime": "2026-06-18T15:04:26.277665Z"
 }

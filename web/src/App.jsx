@@ -25,6 +25,10 @@ const nodeTypes = {
   groupNode: GroupNode
 };
 
+// Por encima de este número de nodos, renderizar el grafo completo congela el
+// navegador (y tampoco es legible). Se pide acotar por proyecto o búsqueda.
+const NODE_RENDER_LIMIT = 700;
+
 const getLayoutedElements = (data, filters, searchQuery, activeProjects, groupingEnabled, showMediatR) => {
   const messages = data.messages || [];
   const producers = data.producers || [];
@@ -795,7 +799,11 @@ export default function App() {
 
   // Aplicar atenuación / resaltado dinámico de aristas
   const edges = useMemo(() => {
-    if (!highlightedElements) return rawEdges;
+    // Sin selección: aristas SIN animar. Animar miles de aristas a la vez es el
+    // mayor coste de render; solo animamos las resaltadas de un flujo concreto.
+    if (!highlightedElements) {
+      return rawEdges.map(edge => (edge.animated ? { ...edge, animated: false } : edge));
+    }
     return rawEdges.map(edge => {
       const isHighlighted = highlightedElements.edges.has(edge.id);
       return {
@@ -810,6 +818,9 @@ export default function App() {
       };
     });
   }, [rawEdges, highlightedElements]);
+
+  // ¿Demasiados nodos para renderizar? (se pide acotar en vez de congelar)
+  const tooLarge = rawNodes.length > NODE_RENDER_LIMIT;
 
   // Manejar la carga de un nuevo JSON
   const handleDataLoaded = (newData) => {
@@ -912,12 +923,32 @@ export default function App() {
 
       {/* React Flow Canvas */}
       <div className="canvas-container">
+        {tooLarge ? (
+          <div className="scale-guard">
+            <div className="scale-guard-card glass-panel-heavy">
+              <h2>Vista demasiado grande para mostrarse de una vez</h2>
+              <p>
+                Con los filtros actuales se dibujarían <strong>{rawNodes.length.toLocaleString()}</strong> nodos.
+                Renderizar tantos a la vez bloquea el navegador y, además, no es legible.
+              </p>
+              <p>Acota la vista para visualizarla (límite: {NODE_RENDER_LIMIT.toLocaleString()} nodos):</p>
+              <ul>
+                <li>Selecciona <strong>uno o pocos proyectos / microservicios</strong> en el panel izquierdo (botón “Ninguno” y marca los que te interesen).</li>
+                <li>O usa la <strong>búsqueda</strong> para filtrar por un mensaje o actor concreto.</li>
+                <li>O desmarca categorías (Commands/Events/…) que no necesites.</li>
+              </ul>
+            </div>
+          </div>
+        ) : (
         <ReactFlow
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
+          onlyRenderVisibleElements
+          nodesDraggable={false}
+          minZoom={0.05}
           fitView
           attributionPosition="bottom-right"
         >
@@ -941,6 +972,7 @@ export default function App() {
             className="border border-white/[0.05] rounded-lg overflow-hidden !bg-black/30 backdrop-blur-md"
           />
         </ReactFlow>
+        )}
       </div>
 
       {/* Panel de Detalles */}

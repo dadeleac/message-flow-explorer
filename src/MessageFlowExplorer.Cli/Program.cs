@@ -81,6 +81,13 @@ class Program
             Console.WriteLine($"  - Actividades (Activities): {report.Activities.Count}");
             Console.WriteLine($"  - Routing Slips: {report.RoutingSlips.Count}");
 
+            var verbs = report.Producers.GroupBy(p => p.CallType).ToDictionary(g => g.Key, g => g.Count());
+            Console.WriteLine(
+                $"  - Producción: Publish {verbs.GetValueOrDefault("Publish")} · " +
+                $"Send {verbs.GetValueOrDefault("Send")} · " +
+                $"Request {verbs.GetValueOrDefault("Request")} · " +
+                $"Respond {verbs.GetValueOrDefault("Respond")}");
+
             foreach (var slip in report.RoutingSlips)
             {
                 var pasos = string.Join(" → ", slip.Itinerary.Select(s => s.Name));

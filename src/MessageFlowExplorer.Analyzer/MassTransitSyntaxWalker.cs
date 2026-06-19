@@ -162,7 +162,12 @@ public class MassTransitSyntaxWalker : CSharpSyntaxWalker
                     var consumerTypeName = GetClassDisplayString(node);
                     var project = GetProjectName(node);
                     var codeSnippet = GetCodeSnippet(node);
-                    Consumers.Add(new ConsumerInfo(location, messageTypeName, consumerTypeName, project, codeSnippet, "MediatR"));
+                    // IRequestHandler<TReq> (o <TReq, Unit>) = comando (sin respuesta útil);
+                    // IRequestHandler<TReq, TResponse> con respuesta real = query/request.
+                    var args = genericName.TypeArgumentList.Arguments;
+                    bool isCommand = args.Count == 1 || (args.Count >= 2 && IsUnitType(args[1]));
+                    var kind = isCommand ? "CommandHandler" : "RequestHandler";
+                    Consumers.Add(new ConsumerInfo(location, messageTypeName, consumerTypeName, project, codeSnippet, "MediatR", kind));
                 }
                 else if (interfaceName == "INotificationHandler" && genericName.TypeArgumentList.Arguments.Count == 1)
                 {
@@ -172,10 +177,17 @@ public class MassTransitSyntaxWalker : CSharpSyntaxWalker
                     var consumerTypeName = GetClassDisplayString(node);
                     var project = GetProjectName(node);
                     var codeSnippet = GetCodeSnippet(node);
-                    Consumers.Add(new ConsumerInfo(location, messageTypeName, consumerTypeName, project, codeSnippet, "MediatR"));
+                    Consumers.Add(new ConsumerInfo(location, messageTypeName, consumerTypeName, project, codeSnippet, "MediatR", "NotificationHandler"));
                 }
             }
         }
+    }
+
+    /// <summary>True si el tipo es MediatR.Unit (respuesta vacía = comando).</summary>
+    private bool IsUnitType(TypeSyntax typeSyntax)
+    {
+        var display = GetTypeDisplayString(typeSyntax);
+        return display == "Unit" || display.EndsWith(".Unit", StringComparison.Ordinal);
     }
 
     /// <summary>Si el tipo es Batch&lt;T&gt; devuelve T; en caso contrario, el tipo original.</summary>

@@ -335,6 +335,53 @@ public class OrderController
     }
 
     [Fact]
+    public void Categories_Are_Inferred_From_Handler_Intent_Not_Name()
+    {
+        // Nombres NEUTROS a propósito: la categoría debe salir de la interfaz del
+        // handler, no del sufijo del nombre.
+        var tempDir = Path.Combine(Path.GetTempPath(), "mfe-cat-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, "Handlers.cs"), @"
+namespace MediatR
+{
+    public sealed class Unit { }
+    public interface INotificationHandler<T> { }
+    public interface IRequestHandler<TReq, TRes> { }
+    public interface IRequestHandler<TReq> { }
+}
+namespace App
+{
+    using MediatR;
+
+    public class ThingHappened { }                 // notificación
+    public class ThingHappenedHandler : INotificationHandler<ThingHappened> { }
+
+    public class FetchThing { }                     // query (respuesta real)
+    public class ThingDto { }
+    public class FetchThingHandler : IRequestHandler<FetchThing, ThingDto> { }
+
+    public class DoThing { }                         // comando (respuesta Unit)
+    public class DoThingHandler : IRequestHandler<DoThing, MediatR.Unit> { }
+}
+");
+            var scanner = new SolutionScanner();
+            var report = scanner.ScanDirectory(tempDir);
+
+            string Cat(string suffix) => report.Messages.First(m => m.Type.EndsWith(suffix)).Category;
+
+            Assert.Equal("Event", Cat("App.ThingHappened"));
+            Assert.Equal("Request", Cat("App.FetchThing"));
+            Assert.Equal("Command", Cat("App.DoThing"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Custom_Publisher_Wrapper_Is_Not_Misclassified_As_MediatR()
     {
         // Patrón común: envolver MassTransit tras una interfaz propia que termina en

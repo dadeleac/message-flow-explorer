@@ -346,32 +346,17 @@ public class SolutionScanner
         List<RoutingSlipInfo> routingSlips,
         HashSet<string> messageTypes)
     {
-        var messages = messageTypes.Select(type =>
-        {
-            string category = "Event"; // Por defecto, asumimos Event
-            if (type.EndsWith("Command") || type.Contains("Command"))
-            {
-                category = "Command";
-            }
-            else if (type.EndsWith("Request") || type.Contains("Request"))
-            {
-                category = "Request";
-            }
-            else
-            {
-                var relatedProducers = producers.Where(p => p.MessageType == type).ToList();
-                if (relatedProducers.Any(p => p.CallType == "Request"))
-                {
-                    category = "Request";
-                }
-                else if (relatedProducers.Any(p => p.CallType == "Send"))
-                {
-                    category = "Command";
-                }
-            }
+        // Índices por tipo de mensaje (evita O(n²) en repos grandes).
+        var consumersByType = consumers
+            .GroupBy(c => c.MessageType)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var producersByType = producers
+            .GroupBy(p => p.MessageType)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
-            return new MessageInfo(type, category);
-        }).ToList();
+        var messages = messageTypes
+            .Select(type => new MessageInfo(type, ClassifyMessage(type, consumersByType, producersByType)))
+            .ToList();
 
         return new TopologyReport(
             messages,
@@ -382,6 +367,49 @@ public class SolutionScanner
             routingSlips,
             DateTime.UtcNow
         );
+    }
+
+    /// <summary>
+    /// Clasifica un mensaje en Command/Event/Request por la INTENCIÓN real, no por el
+    /// nombre. Prioridad (de más fiable a menos), genérica para cualquier proyecto:
+    ///   1) Interfaz del handler MediatR: NotificationHandler→Event, CommandHandler→Command,
+    ///      RequestHandler→Request.
+    ///   2) Verbo de producción: Request/Respond→Request, Publish→Event, Send→Command.
+    ///   3) Sufijo del nombre (último recurso): *Command, *Query, *Request/Response, *Event/Notification.
+    ///   4) Por defecto: Event.
+    /// </summary>
+    private static string ClassifyMessage(
+        string type,
+        Dictionary<string, List<ConsumerInfo>> consumersByType,
+        Dictionary<string, List<ProducerInfo>> producersByType)
+    {
+        // 1) Intención por interfaz del handler (MediatR).
+        if (consumersByType.TryGetValue(type, out var cs))
+        {
+            if (cs.Any(c => c.Kind == "NotificationHandler")) return "Event";
+            if (cs.Any(c => c.Kind == "CommandHandler")) return "Command";
+            if (cs.Any(c => c.Kind == "RequestHandler")) return "Request";
+        }
+
+        // 2) Cómo se produce el mensaje.
+        if (producersByType.TryGetValue(type, out var ps))
+        {
+            if (ps.Any(p => p.CallType == "Request" || p.CallType == "Respond")) return "Request";
+            if (ps.Any(p => p.CallType == "Publish")) return "Event";
+            if (ps.Any(p => p.CallType == "Send")) return "Command";
+        }
+
+        // 3) Sufijo del nombre corto (sin el Contains goloso anterior).
+        var shortName = type.Contains('.') ? type[(type.LastIndexOf('.') + 1)..] : type;
+        if (shortName.EndsWith("Command", StringComparison.Ordinal)) return "Command";
+        if (shortName.EndsWith("Query", StringComparison.Ordinal)) return "Request";
+        if (shortName.EndsWith("Request", StringComparison.Ordinal)) return "Request";
+        if (shortName.EndsWith("Response", StringComparison.Ordinal)) return "Request";
+        if (shortName.EndsWith("Notification", StringComparison.Ordinal)) return "Event";
+        if (shortName.EndsWith("Event", StringComparison.Ordinal)) return "Event";
+
+        // 4) Por defecto.
+        return "Event";
     }
 
     private static void EnsureMsBuildRegistered()

@@ -7,7 +7,12 @@ public record MessageInfo(string Type, string Category);
 
 public record ProducerInfo(string Location, string MessageType, string CallType, string Project = "Unknown", string? CodeSnippet = null, string Provider = "MassTransit", string? ResponseType = null);
 
-public record ConsumerInfo(string Location, string MessageType, string ConsumerType, string Project = "Unknown", string? CodeSnippet = null, string Provider = "MassTransit");
+// Kind: clasifica la intención del consumidor para inferir la categoría del mensaje.
+//   "Consumer"            -> MassTransit IConsumer (intención según el verbo de envío)
+//   "NotificationHandler" -> MediatR INotificationHandler (evento)
+//   "RequestHandler"      -> MediatR IRequestHandler con respuesta real (query/request)
+//   "CommandHandler"      -> MediatR IRequestHandler sin respuesta útil (Unit) (comando)
+public record ConsumerInfo(string Location, string MessageType, string ConsumerType, string Project = "Unknown", string? CodeSnippet = null, string Provider = "MassTransit", string Kind = "Consumer");
 
 public record SagaInfo(string Location, string SagaType, List<string> ConsumedEvents, List<string> PublishedMessages, string Project = "Unknown", string? CodeSnippet = null);
 
