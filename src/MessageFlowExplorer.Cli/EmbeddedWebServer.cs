@@ -14,9 +14,9 @@ namespace MessageFlowExplorer.Cli;
 public class EmbeddedWebServer
 {
     private readonly string _topologyJson;
-    private readonly HttpListener _listener;
+    private HttpListener _listener;
     private readonly Dictionary<string, string> _resourcesMap;
-    private readonly int _port;
+    private int _port;
     private bool _isRunning;
 
     public EmbeddedWebServer(string topologyJson, int port = 5000)
@@ -24,7 +24,6 @@ public class EmbeddedWebServer
         _topologyJson = topologyJson;
         _port = port;
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{_port}/");
         _resourcesMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         InitializeResourcesMap();
@@ -50,10 +49,52 @@ public class EmbeddedWebServer
 
     public void Start()
     {
+        // Intentar el puerto pedido y, si está ocupado/bloqueado (típico en Windows
+        // con rangos reservados por Hyper-V/WSL), probar los siguientes y un par de
+        // alternativas comunes. Así el visor levanta sí o sí.
+        var candidates = new List<int>();
+        for (int p = _port; p <= _port + 20; p++) candidates.Add(p);
+        foreach (var extra in new[] { 8080, 8888, 5050 })
+        {
+            if (!candidates.Contains(extra)) candidates.Add(extra);
+        }
+
+        Exception? lastError = null;
+        bool started = false;
+        foreach (var p in candidates)
+        {
+            try
+            {
+                _listener = new HttpListener();
+                _listener.Prefixes.Add($"http://localhost:{p}/");
+                _listener.Start();
+                _port = p;
+                started = true;
+                break;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                try { _listener.Close(); } catch { /* ignorar */ }
+            }
+        }
+
+        if (!started)
+        {
+            throw new InvalidOperationException(
+                $"No se pudo iniciar el servidor web: todos los puertos probados ({candidates[0]}–{candidates[^1]}) están ocupados o bloqueados. " +
+                $"Prueba con -p <puerto> libre. Detalle: {lastError?.Message}");
+        }
+
         _isRunning = true;
-        _listener.Start();
+
+        var url = $"http://localhost:{_port}/";
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"\nServidor web embebido iniciado en: http://localhost:{_port}/");
+        Console.WriteLine();
+        Console.WriteLine("============================================================");
+        Console.WriteLine($"   ✅ Visor listo en:  {url}");
+        Console.WriteLine("   (Si no se abre solo, copia esa URL en tu navegador)");
+        Console.WriteLine("============================================================");
         Console.ResetColor();
 
         Task.Run(() => ListenLoop());

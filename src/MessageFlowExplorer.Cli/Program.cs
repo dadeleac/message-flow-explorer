@@ -19,6 +19,7 @@ class Program
         string inputDir = Directory.GetCurrentDirectory();
         string outputFile = Path.Combine(Directory.GetCurrentDirectory(), "message-flow.json");
         bool serve = false;
+        int port = 5000;
 
         // Simple parsing de argumentos
         for (int i = 0; i < args.Length; i++)
@@ -42,6 +43,14 @@ class Program
             else if (args[i] == "--serve" || args[i] == "-s")
             {
                 serve = true;
+            }
+            else if (args[i] == "--port" || args[i] == "-p")
+            {
+                if (i + 1 < args.Length && int.TryParse(args[i + 1], out var parsedPort))
+                {
+                    port = parsedPort;
+                    i++;
+                }
             }
             else if (args[i] == "--help" || args[i] == "-h")
             {
@@ -137,7 +146,7 @@ class Program
 
             if (serve)
             {
-                var server = new EmbeddedWebServer(json);
+                var server = new EmbeddedWebServer(json, port);
                 try
                 {
                     server.Start();
@@ -172,6 +181,7 @@ class Program
         Console.WriteLine("  -i, --input <ruta>    Directorio raíz del proyecto o solución a escanear (por defecto: directorio actual)");
         Console.WriteLine("  -o, --output <ruta>   Ruta del archivo JSON resultante (por defecto: message-flow.json en el directorio actual)");
         Console.WriteLine("  -s, --serve           Inicia el servidor web y abre el visualizador en el navegador");
+        Console.WriteLine("  -p, --port <numero>   Puerto del servidor web (por defecto: 5000; si está ocupado, prueba el siguiente libre)");
         Console.WriteLine("  -h, --help            Muestra esta pantalla de ayuda");
         Console.WriteLine();
     }
